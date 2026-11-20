@@ -1,6 +1,7 @@
 import type { Analysis, Edge, EdgeKind, Graph, GraphNode, Note, ParsedNote, Settings } from './types';
 import { parseNote } from './markdown';
 import { normKey, tokenize } from './text';
+import { folderColor } from './folders';
 
 /* ------------------------------------------------------------------ *
  * Motor de conexões
@@ -154,7 +155,7 @@ export function buildGraph(parsed: ParsedNote[], titleIndex: Map<string, string>
       if (!l) tagIndex.set(t, (l = []));
       l.push(n.id);
     }
-  if (s.useTags) {
+  if (s.useTags && !s.showTagNodes) {
     const shared = new Map<string, string[]>();
     for (const [tag, ids] of tagIndex) {
       if (ids.length < 2 || ids.length > s.maxTagGroup) continue;
@@ -217,8 +218,23 @@ export function buildGraph(parsed: ParsedNote[], titleIndex: Map<string, string>
   const tagFreq = (t: string) => tagIndex.get(t)?.length ?? 0;
   const nodes: GraphNode[] = parsed.map((n) => {
     const primaryTag = [...n.tags].sort((a, b) => tagFreq(b) - tagFreq(a) || a.localeCompare(b))[0];
-    return { id: n.id, title: n.title, tags: n.tags, degree: degree.get(n.id) ?? 0, primaryTag, color: tagColor(primaryTag) };
+    return {
+      id: n.id, type: 'note', title: n.title, folder: n.folder, tags: n.tags, degree: degree.get(n.id) ?? 0, primaryTag,
+      color: s.colorBy === 'folder' ? folderColor(n.folder) : tagColor(primaryTag),
+    };
   });
+
+  // #tags como nós-hub: cada tag liga-se às suas notas.
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  if (s.useTags && s.showTagNodes)
+    for (const [tag, ids] of tagIndex) {
+      const id = `tag:${tag}`;
+      for (const nid of ids) {
+        edges.push({ source: nid, target: id, kinds: ['tag'], weight: 0.35 * s.wTag + 0.15, sharedTags: [tag], terms: [] });
+        nodeById.get(nid)!.degree++;
+      }
+      nodes.push({ id, type: 'tag', title: `#${tag}`, folder: '', tags: [tag], degree: ids.length, primaryTag: tag, color: tagColor(tag) });
+    }
   return { nodes, edges };
 }
 

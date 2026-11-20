@@ -2,10 +2,11 @@ import { useCallback, useMemo } from 'react';
 import { useVault } from '../state/vault';
 import { toggleTask } from '../domain/markdown';
 import { normKey } from '../domain/text';
+import { folderColor } from '../domain/folders';
 import { noteFile, saveFile } from '../storage/markdownFiles';
 import { EditorMarkdown } from './EditorMarkdown';
 import { ViewerMarkdown } from './ViewerMarkdown';
-import { IconBack, IconEdit, IconEye, IconShare, IconTrash } from './icons';
+import { IconBack, IconChevron, IconEdit, IconEye, IconFolder, IconShare, IconTrash } from './icons';
 
 interface Props {
   noteId: string | null;
@@ -20,7 +21,7 @@ interface Props {
 const KIND_LABEL = { link: 'link', tag: 'tag', semantic: 'similar' } as const;
 
 export function NoteView({ noteId, editing, setEditing, onBack, onOpenNote, onTag, onDeleted }: Props) {
-  const { notes, analysis, updateNote, deleteNote, createNote } = useVault();
+  const { notes, analysis, folders, updateNote, deleteNote, createNote, moveNote } = useVault();
   const note = notes.find((n) => n.id === noteId);
   const parsed = noteId ? analysis.byId.get(noteId) : undefined;
   const titles = useMemo(() => analysis.parsed.map((p) => p.title).sort((a, b) => a.localeCompare(b)), [analysis]);
@@ -46,7 +47,7 @@ export function NoteView({ noteId, editing, setEditing, onBack, onOpenNote, onTa
   const openLink = (target: string) => {
     const id = analysis.titleIndex.get(normKey(target));
     if (id) onOpenNote(id);
-    else onOpenNote(createNote(target), true); // link pendente → cria a nota
+    else onOpenNote(createNote(target, parsed.folder), true); // link pendente → cria a nota na mesma pasta
   };
 
   return (
@@ -64,6 +65,19 @@ export function NoteView({ noteId, editing, setEditing, onBack, onOpenNote, onTa
           onClick={() => { if (confirm(`Apagar “${parsed.title}”?`)) { deleteNote(note.id); onDeleted(); } }}
           className="btn-icon text-red-400" aria-label="Apagar"><IconTrash /></button>
       </header>
+
+      {/* Pasta da nota: <select> nativo (roleta no iOS) para mover entre pastas */}
+      <label className="relative flex h-9 items-center gap-1.5 border-b border-line/60 px-4 text-xs text-muted">
+        <IconFolder width={14} height={14} style={{ color: folderColor(parsed.folder) }} />
+        <span className="min-w-0 truncate">{parsed.folder.split('/').join('  ›  ')}</span>
+        <IconChevron width={12} height={12} className="rotate-90" />
+        <select value={parsed.folder} onChange={(e) => moveNote(note.id, e.target.value)} aria-label="Mover para pasta"
+          className="absolute inset-0 cursor-pointer opacity-0">
+          {[...folders].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true })).map((f) => (
+            <option key={f} value={f}>{'\u2003'.repeat(f.split('/').length - 1) + f.split('/').pop()}</option>
+          ))}
+        </select>
+      </label>
 
       {editing ? (
         <EditorMarkdown noteId={note.id} value={note.content} titles={titles} onChange={(v) => updateNote(note.id, v)} />

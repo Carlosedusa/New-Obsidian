@@ -1,5 +1,6 @@
 import type { FrontmatterValue, Note, ParsedNote } from './types';
 import { normKey } from './text';
+import { normalizePath, UNSORTED } from './folders';
 
 const FM_RE = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
 
@@ -96,7 +97,8 @@ export function toPlainText(md: string): string {
     .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+(\[[ xX]\]\s+)?/gm, '')
     .replace(/^\s*\|?\s*:?-{3,}.*$/gm, ' ')
     .replace(/^\s*([-*_])(\s*\1){2,}\s*$/gm, ' ')
-    .replace(/[*_~|]+/g, ' ')
+    .replace(/[*_~]+/g, '')
+    .replace(/\|+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -126,6 +128,7 @@ export function parseNote(note: Note): ParsedNote {
     id: note.id,
     title,
     titleKey: normKey(title),
+    folder: normalizePath(note.folder) || UNSORTED,
     tags,
     links: extractWikiLinks(fm.body),
     frontmatter: fm.data,

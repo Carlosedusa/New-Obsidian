@@ -57,6 +57,20 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         </section>
 
         <section className="card">
+          <h3 className="card-title">Cérebro</h3>
+          <div className="mb-1 text-sm">Cor dos neurônios</div>
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-raised p-1">
+            {(['folder', 'tag'] as const).map((c) => (
+              <button key={c} onClick={() => set('colorBy')(c)}
+                className={`h-9 rounded-lg text-sm ${s.colorBy === c ? 'bg-surface font-semibold shadow' : 'text-muted'}`}>
+                {c === 'folder' ? 'Por pasta' : 'Por tag'}
+              </button>
+            ))}
+          </div>
+          <Toggle label="Mostrar #tags como nós (hubs)" checked={s.showTagNodes} onChange={set('showTagNodes')} />
+        </section>
+
+        <section className="card">
           <h3 className="card-title">Aparência</h3>
           <div className="grid grid-cols-3 gap-1 rounded-xl bg-raised p-1">
             {(['auto', 'dark', 'light'] as ThemeMode[]).map((t) => (
@@ -70,7 +84,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
 
         <section className="card space-y-2">
           <h3 className="card-title">Dados (100% no aparelho)</h3>
-          <button className="btn-row" onClick={() => saveFile(vaultZip(notes, parseNote))}>Exportar cofre inteiro (.zip de .md)</button>
+          <button className="btn-row" onClick={() => saveFile(vaultZip(notes, parseNote))}>Exportar cofre inteiro (.zip com pastas e .md)</button>
           <button className="btn-row" onClick={loadExamples}>Recarregar notas de exemplo</button>
         </section>
 

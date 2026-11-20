@@ -33,7 +33,7 @@ export function useTheme(mode: 'auto' | 'dark' | 'light') {
     const apply = () => {
       const dark = mode === 'dark' || (mode === 'auto' && mq.matches);
       document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b1020' : '#f6f7fb');
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0a0c11' : '#f6f7fb');
     };
     apply();
     mq.addEventListener('change', apply);

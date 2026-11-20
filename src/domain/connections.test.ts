@@ -58,3 +58,13 @@ describe('motor de conexões', () => {
     expect(g.edges.every((e) => e.kinds.length === 1 && e.kinds[0] === 'link')).toBe(true);
   });
 });
+
+describe('tags como nós', () => {
+  const notes = [note('a', '# A\n#x'), note('b', '# B\n#x'), note('c', '# C\n#y')];
+  const g = analyze(notes, { ...DEFAULT_SETTINGS, useSemantic: false, showTagNodes: true }).graph;
+  it('cria hubs de tag ligados às notas, sem arestas nota-nota por tag', () => {
+    expect(g.nodes.filter((n) => n.type === 'tag').map((n) => n.id).sort()).toEqual(['tag:x', 'tag:y']);
+    expect(g.edges.some((e) => e.source === 'a' && e.target === 'b')).toBe(false);
+    expect(g.edges.filter((e) => e.target === 'tag:x')).toHaveLength(2);
+  });
+});

@@ -4,7 +4,7 @@ import {
   type Simulation, type SimulationLinkDatum, type SimulationNodeDatum,
 } from 'd3-force';
 import type { Edge, Graph, GraphNode } from '../domain/types';
-import { neighborhood, pairKey, tagColor } from '../domain/connections';
+import { neighborhood, pairKey } from '../domain/connections';
 import type { Layout } from '../state/vault';
 
 type SimNode = GraphNode & SimulationNodeDatum & { r: number };
@@ -29,12 +29,21 @@ interface Props {
 
 interface Pulse { id: string; t0: number }
 interface Signal { a: string; b: string; t0: number }
-interface Theme { ink: string; muted: string; accent: string; bg: string }
+interface Theme { ink: string; muted: string; accent: string; bg: string; edge: string; dark: boolean }
 
 const PULSE_MS = 1100;
 const SIGNAL_MS = 1200;
 const TAP_SLOP = 6;
-const radius = (deg: number) => 5 + Math.sqrt(deg) * 3.2;
+const radius = (deg: number, type: GraphNode['type']) => (type === 'tag' ? 2.5 + Math.sqrt(deg) * 1.9 : 3.2 + Math.sqrt(deg) * 2.5);
+
+/** Aceita #hex ou hsl(...) e devolve a mesma cor com alfa. */
+function withAlpha(color: string, a: number): string {
+  if (color.startsWith('#')) {
+    const n = parseInt(color.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+  return color.replace(')', ` / ${a})`);
+}
 
 const glowCache = new Map<string, HTMLCanvasElement>();
 function glowSprite(color: string): HTMLCanvasElement {
@@ -44,8 +53,9 @@ function glowSprite(color: string): HTMLCanvasElement {
   c.width = c.height = 64;
   const g = c.getContext('2d')!;
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, color.replace(')', ' / 0.55)'));
-  grad.addColorStop(1, color.replace(')', ' / 0)'));
+  grad.addColorStop(0, withAlpha(color, 0.6));
+  grad.addColorStop(0.35, withAlpha(color, 0.18));
+  grad.addColorStop(1, withAlpha(color, 0));
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
   glowCache.set(color, c);
@@ -55,7 +65,10 @@ function glowSprite(color: string): HTMLCanvasElement {
 function readTheme(): Theme {
   const cs = getComputedStyle(document.documentElement);
   const v = (n: string) => `rgb(${cs.getPropertyValue(n).trim().split(/\s+/).join(',')})`;
-  return { ink: v('--c-ink'), muted: v('--c-muted'), accent: v('--c-accent'), bg: v('--c-bg') };
+  return {
+    ink: v('--c-ink'), muted: v('--c-muted'), accent: v('--c-accent'), bg: v('--c-bg'), edge: v('--c-edge'),
+    dark: document.documentElement.dataset.theme !== 'light',
+  };
 }
 
 export function BrainGraph({ graph, layout, onSaveLayout, selectedId, onSelect, highlight, pulse, handleRef }: Props) {
@@ -108,7 +121,7 @@ export function BrainGraph({ graph, layout, onSaveLayout, selectedId, onSelect, 
     }
     s.pulses = s.pulses.filter((p) => now - p.t0 < PULSE_MS);
     s.signals = s.signals.filter((g) => now - g.t0 < SIGNAL_MS);
-    if (s.pulses.length || s.signals.length || gesture.mode === 'node') active = true;
+    if (s.pulses.length || s.signals.length || gesture.mode === 'node' || (s.sel && !s.reduceMotion)) active = true;
     draw(now);
     if (active) kick();
   }
@@ -130,9 +143,10 @@ export function BrainGraph({ graph, layout, onSaveLayout, selectedId, onSelect, 
     }
     if (!isFinite(x0) || !w) return { x: w / 2, y: h / 2, k: 1 };
     // Margem horizontal maior: os rótulos ficam abaixo/ao lado dos nós.
-    const padX = Math.min(90, w * 0.16), padY = 56;
-    const k = Math.max(0.15, Math.min(2.2, Math.min((w - padX * 2) / (x1 - x0 || 1), (h - padY * 2) / (y1 - y0 || 1))));
-    return { x: w / 2 - ((x0 + x1) / 2) * k, y: h / 2 - ((y0 + y1) / 2) * k, k };
+    // Reserva a área da busca/filtros (topo) e do HUD (base).
+    const padX = Math.min(90, w * 0.16), top = 120, bottom = 84;
+    const k = Math.max(0.15, Math.min(2.2, Math.min((w - padX * 2) / (x1 - x0 || 1), (h - top - bottom) / (y1 - y0 || 1))));
+    return { x: w / 2 - ((x0 + x1) / 2) * k, y: top + (h - top - bottom) / 2 - ((y0 + y1) / 2) * k, k };
   }
 
   function animateTo(to: { x: number; y: number; k: number }) {
@@ -165,80 +179,141 @@ export function BrainGraph({ graph, layout, onSaveLayout, selectedId, onSelect, 
     const { x: tx, y: ty, k } = s.t;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
+    ctx.lineCap = 'round';
+    const glowOp: GlobalCompositeOperation = th.dark ? 'lighter' : 'source-over';
 
     const sel = s.sel && s.nodes.has(s.sel) ? s.sel : null;
     const hl = s.highlight;
     const alphaOf = (id: string) => {
-      if (sel) return id === sel || s.near.first.has(id) ? 1 : s.near.second.has(id) ? 0.5 : 0.08;
-      if (hl) return hl.has(id) ? 1 : 0.1;
+      if (sel) return id === sel || s.near.first.has(id) ? 1 : s.near.second.has(id) ? 0.45 : 0.07;
+      if (hl) return hl.has(id) ? 1 : 0.08;
       return 1;
     };
     const sx = (n: SimNode) => n.x! * k + tx;
     const sy = (n: SimNode) => n.y! * k + ty;
+    const lw = Math.max(0.45, Math.min(1.4, Math.sqrt(k)));
 
-    // Arestas (sinapses)
-    const lw = Math.max(0.5, Math.min(1.6, Math.sqrt(k)));
+    // 1) Sinapses: linhas finas (estilo Obsidian); semânticas pontilhadas
     for (const l of s.links) {
       const a = l.source, b = l.target;
-      const touchesSel = sel && (a.id === sel || b.id === sel);
-      const al = touchesSel ? 0.95 : Math.min(alphaOf(a.id), alphaOf(b.id)) * (0.25 + 0.5 * l.edge.weight);
-      if (al < 0.03) continue;
+      if (sel && (a.id === sel || b.id === sel)) continue; // desenhadas por cima, depois
+      const al = Math.min(alphaOf(a.id), alphaOf(b.id)) * (0.22 + 0.45 * l.edge.weight);
+      if (al < 0.02) continue;
       const kinds = l.edge.kinds;
-      ctx.strokeStyle = kinds.includes('link') ? th.accent : kinds.includes('tag') ? tagColor(l.edge.sharedTags[0]) : th.muted;
+      ctx.strokeStyle = kinds.includes('link') ? th.accent : th.edge;
       ctx.globalAlpha = al;
-      ctx.lineWidth = lw * (0.6 + 2.2 * l.edge.weight) * (touchesSel ? 1.4 : 1);
-      ctx.setLineDash(kinds.length === 1 && kinds[0] === 'semantic' ? [3, 4] : []);
+      ctx.lineWidth = lw * (0.5 + 1.3 * l.edge.weight);
+      ctx.setLineDash(kinds.length === 1 && kinds[0] === 'semantic' ? [2, 4] : []);
       ctx.beginPath();
       ctx.moveTo(sx(a), sy(a));
       ctx.lineTo(sx(b), sy(b));
       ctx.stroke();
     }
+
+    // 2) Conexões do nó selecionado: brilho + fluxo de dados animado
+    if (sel) {
+      const flow = s.reduceMotion ? 0 : -(now / 28) % 16;
+      for (const l of s.links) {
+        if (l.source.id !== sel && l.target.id !== sel) continue;
+        const other = l.source.id === sel ? l.target : l.source;
+        const from = s.nodes.get(sel)!;
+        ctx.globalCompositeOperation = glowOp;
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 0.35 + 0.4 * l.edge.weight;
+        ctx.strokeStyle = other.color;
+        ctx.lineWidth = lw * (1 + 2 * l.edge.weight);
+        ctx.beginPath(); ctx.moveTo(sx(from), sy(from)); ctx.lineTo(sx(other), sy(other)); ctx.stroke();
+        ctx.setLineDash([3, 13]);
+        ctx.lineDashOffset = flow;
+        ctx.globalAlpha = 0.95;
+        ctx.strokeStyle = th.dark ? '#ffffff' : th.accent;
+        ctx.lineWidth = lw * 2.2;
+        ctx.beginPath(); ctx.moveTo(sx(from), sy(from)); ctx.lineTo(sx(other), sy(other)); ctx.stroke();
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.lineDashOffset = 0;
+    }
     ctx.setLineDash([]);
 
-    // Sinais percorrendo novas conexões
+    // 3) Sinais percorrendo novas conexões
+    ctx.globalCompositeOperation = glowOp;
     for (const g of s.signals) {
       const a = s.nodes.get(g.a), b = s.nodes.get(g.b);
       if (!a || !b) continue;
       const p = (now - g.t0) / SIGNAL_MS;
       const x = sx(a) + (sx(b) - sx(a)) * p, y = sy(a) + (sy(b) - sy(a)) * p;
-      ctx.globalAlpha = 1 - p * 0.6;
-      ctx.drawImage(glowSprite(a.color), x - 14, y - 14, 28, 28);
-      ctx.fillStyle = th.ink;
-      ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1 - p * 0.5;
+      ctx.drawImage(glowSprite(a.color), x - 16, y - 16, 32, 32);
     }
 
-    // Nós (neurônios)
+    // 4) Neurônios: halo neon (somado) + núcleo
     const nodes = [...s.nodes.values()];
     for (const n of nodes) {
-      const al = alphaOf(n.id);
-      const r = Math.max(2.5, n.r * k);
       const x = sx(n), y = sy(n);
       if (x < -60 || y < -60 || x > w + 60 || y > h + 60) continue;
-      ctx.globalAlpha = al * 0.9;
-      const gr = r * 3.4;
+      const r = Math.max(2, n.r * k);
+      const al = alphaOf(n.id);
+      ctx.globalAlpha = al * (n.type === 'tag' ? 0.5 : 0.85);
+      const gr = r * (n.id === sel ? 6 : 4);
       ctx.drawImage(glowSprite(n.color), x - gr, y - gr, gr * 2, gr * 2);
-      ctx.globalAlpha = al;
-      ctx.fillStyle = n.color;
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-      ctx.lineWidth = 1.5; ctx.strokeStyle = th.bg; ctx.stroke();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    for (const n of nodes) {
+      const x = sx(n), y = sy(n);
+      if (x < -60 || y < -60 || x > w + 60 || y > h + 60) continue;
+      const r = Math.max(2, n.r * k);
+      ctx.globalAlpha = alphaOf(n.id);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+      if (n.type === 'tag') {
+        ctx.fillStyle = th.bg; ctx.fill();
+        ctx.lineWidth = 1.6; ctx.strokeStyle = n.color; ctx.stroke();
+      } else {
+        ctx.fillStyle = n.color; ctx.fill();
+        // núcleo claro: dá a sensação de "luz" interna
+        ctx.globalAlpha *= th.dark ? 0.55 : 0.3;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.25, r * 0.38, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = alphaOf(n.id);
+      }
+      // Hubs: anel externo fino
+      if (n.degree >= 6 && n.type === 'note') {
+        ctx.globalAlpha = alphaOf(n.id) * 0.45;
+        ctx.lineWidth = 1; ctx.strokeStyle = n.color;
+        ctx.beginPath(); ctx.arc(x, y, r + 3.5, 0, Math.PI * 2); ctx.stroke();
+      }
+      // Selecionado: órbita tracejada girando + marcas de mira
       if (n.id === sel) {
-        ctx.lineWidth = 2.5; ctx.strokeStyle = th.ink;
-        ctx.beginPath(); ctx.arc(x, y, r + 4, 0, Math.PI * 2); ctx.stroke();
+        const rot = s.reduceMotion ? 0 : now / 900;
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = th.ink; ctx.lineWidth = 1.4;
+        ctx.setLineDash([3, 5]); ctx.lineDashOffset = -rot * 20;
+        ctx.beginPath(); ctx.arc(x, y, r + 8, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]); ctx.lineDashOffset = 0;
+        ctx.strokeStyle = n.color; ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          const ang = rot + (i * Math.PI) / 2;
+          ctx.beginPath();
+          ctx.moveTo(x + Math.cos(ang) * (r + 12), y + Math.sin(ang) * (r + 12));
+          ctx.lineTo(x + Math.cos(ang) * (r + 17), y + Math.sin(ang) * (r + 17));
+          ctx.stroke();
+        }
       }
     }
 
-    // Impulsos (anéis) em notas criadas/editadas
+    // 5) Impulsos (anéis) em notas criadas/editadas
     for (const p of s.pulses) {
       const n = s.nodes.get(p.id);
       if (!n) continue;
       const t = (now - p.t0) / PULSE_MS;
       ctx.globalAlpha = (1 - t) * 0.9;
-      ctx.strokeStyle = n.color; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(sx(n), sy(n), n.r * k + 4 + t * 36, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = n.color; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(sx(n), sy(n), n.r * k + 4 + t * 40, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = (1 - t) * 0.5;
+      ctx.beginPath(); ctx.arc(sx(n), sy(n), n.r * k + 2 + t * 22, 0, Math.PI * 2); ctx.stroke();
     }
 
-    // Rótulos (tela, tamanho fixo)
-    ctx.font = '600 12px -apple-system, system-ui, sans-serif';
+    // 6) Rótulos (tamanho fixo na tela, sem sobreposição; prioridade: foco > grau)
+    ctx.font = '500 11px ui-monospace, "SF Mono", Menlo, monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.lineJoin = 'round';
@@ -247,17 +322,18 @@ export function BrainGraph({ graph, layout, onSaveLayout, selectedId, onSelect, 
     for (const n of [...nodes].sort((a, b) => prio(b) - prio(a))) {
       const al = alphaOf(n.id);
       const inFocus = sel ? n.id === sel || s.near.first.has(n.id) : hl ? hl.has(n.id) : false;
-      if (!inFocus && !(al > 0.5 && (n.r * k > 7 || k > 1.3))) continue;
-      const x = sx(n), y = sy(n) + Math.max(2.5, n.r * k) + 4;
+      if (!inFocus && !(al > 0.5 && (n.r * k > 7 || k > 1.4))) continue;
+      const x = sx(n), y = sy(n) + Math.max(2, n.r * k) + 5;
       if (x < -100 || x > w + 100 || y < -20 || y > h + 20) continue;
       const label = n.title.length > 26 ? n.title.slice(0, 25) + '…' : n.title;
-      const lw2 = ctx.measureText(label).width / 2 + 3;
-      const box: [number, number, number, number] = [x - lw2, y - 1, x + lw2, y + 15];
+      const half = ctx.measureText(label).width / 2 + 3;
+      const box: [number, number, number, number] = [x - half, y - 1, x + half, y + 14];
       if (placed.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
       placed.push(box);
-      ctx.globalAlpha = al;
-      ctx.lineWidth = 3.5; ctx.strokeStyle = th.bg; ctx.strokeText(label, x, y);
-      ctx.fillStyle = th.ink; ctx.fillText(label, x, y);
+      ctx.globalAlpha = al * (n.id === sel ? 1 : 0.9);
+      ctx.lineWidth = 3; ctx.strokeStyle = th.bg; ctx.strokeText(label, x, y);
+      ctx.fillStyle = n.type === 'tag' ? n.color : th.ink;
+      ctx.fillText(label, x, y);
     }
     ctx.globalAlpha = 1;
   }
@@ -359,13 +435,13 @@ export function BrainGraph({ graph, layout, onSaveLayout, selectedId, onSelect, 
   useEffect(() => {
     s.reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     s.sim = forceSimulation<SimNode, SimLink>([])
-      .force('charge', forceManyBody<SimNode>().strength(-280).distanceMax(500))
+      .force('charge', forceManyBody<SimNode>().strength(-200).distanceMax(520))
       .force('link', forceLink<SimNode, SimLink>([]).id((n) => n.id)
-        .distance((l) => 125 - 55 * l.edge.weight).strength((l) => 0.08 + 0.45 * l.edge.weight))
-      .force('collide', forceCollide<SimNode>((n) => n.r + 12))
-      // Gravidade elíptica (mais larga que alta) → silhueta de "cérebro"
-      .force('x', forceX<SimNode>(0).strength(0.035))
-      .force('y', forceY<SimNode>(0).strength(0.07))
+        .distance((l) => 105 - 45 * l.edge.weight).strength((l) => 0.08 + 0.45 * l.edge.weight))
+      .force('collide', forceCollide<SimNode>((n) => n.r + 9))
+      // Gravidade levemente elíptica → nuvem orgânica arredondada
+      .force('x', forceX<SimNode>(0).strength(0.045))
+      .force('y', forceY<SimNode>(0).strength(0.06))
       .alphaDecay(0.03)
       .stop();
     // StrictMode (dev) monta duas vezes: força o próximo efeito do grafo a repovoar esta simulação.
@@ -416,7 +492,7 @@ export function BrainGraph({ graph, layout, onSaveLayout, selectedId, onSelect, 
     let placedFromLayout = 0;
     for (const g of graph.nodes) {
       const old = prev.get(g.id);
-      const n: SimNode = Object.assign(old ?? ({} as SimNode), g, { r: radius(g.degree) });
+      const n: SimNode = Object.assign(old ?? ({} as SimNode), g, { r: radius(g.degree, g.type) });
       if (!old) {
         const saved = layout[g.id];
         if (saved) { n.x = saved.x; n.y = saved.y; placedFromLayout++; }

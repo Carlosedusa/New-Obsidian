@@ -2,6 +2,23 @@
 
 PWA offline-first para notas em **Markdown (.md)**. As notas se conectam por `[[links]]`, `#tags` e similaridade de termos, e aparecem num **grafo interativo em formato de cérebro**. O app é instalável na Tela de Início do iPhone e do iPad.
 
+## Pastas (estilo PARA)
+
+As notas vivem numa árvore de pastas e subpastas, com esta estrutura padrão:
+
+```
+00 - Current Projects   projetos em andamento
+01 - Areas              responsabilidades contínuas (ex.: PSM, Lingotamento Contínuo)
+02 - Resources          material de referência (ex.: Análise de Risco)
+98 - Archive            itens encerrados
+99 - Unsorted           caixa de entrada (padrão de notas sem pasta)
+```
+
+- **Barra de ferramentas:** nova nota, nova pasta, ordenar (nome ou mais recentes), recolher tudo, importar e configurações.
+- **Menu `⋯` de cada pasta:** nova nota aqui, nova subpasta, importar .md aqui, renomear e apagar. Apagar uma pasta **não apaga as notas**: elas sobem para a pasta-mãe.
+- **Mover uma nota:** pelo seletor de pasta logo abaixo do título (no iPhone abre a roleta nativa).
+- **Importar uma pasta inteira (computador):** mantém a estrutura de subpastas. A exportação `.zip` também.
+
 ## Rodar localmente
 
 ```bash
@@ -30,6 +47,7 @@ src/
     text.ts          normalização, tokenização, stopwords pt/en, stemming leve
     markdown.ts      frontmatter, [[links]], #tags, texto limpo, checklists
     connections.ts   motor de conexões + análise do cofre
+    folders.ts       caminhos de pasta, árvore, renomear/mover, cores por pasta
     seed.ts          "cérebro" de exemplo (PSM, lingotamento, manutenção)
   storage/
     storage.ts       interface VaultStorage + IndexedDB (fallback em memória)
@@ -41,7 +59,8 @@ src/
     BrainPane.tsx    busca, filtro por tag, zoom, legenda, pré-visualização do nó
     EditorMarkdown   textarea, barra de formatação, autocompletar de [[links]]
     ViewerMarkdown   leitor (marked + DOMPurify), links e checklists clicáveis
-    NoteList, NoteView, SettingsSheet, icons
+    FileExplorer     árvore de pastas/subpastas (estilo PARA)
+    NoteView, SettingsSheet, ActionSheet, icons
 ```
 
 ## Motor de conexões
@@ -57,7 +76,7 @@ Os tipos se combinam por "noisy-OR": `w = 1 − Π(1 − wᵢ)`. Um par ligado p
 ## Decisões técnicas
 
 - **Canvas + d3-force, sem biblioteca de grafo pronta.** O controle de cada frame fica no app. A simulação avança por `requestAnimationFrame` só enquanto há movimento: assentou, a CPU fica parada (bom para bateria). Brilho com sprites pré-renderizados em vez de `shadowBlur`. DPR limitado a 2. Rótulos com detecção de colisão.
-- **Silhueta de "cérebro"**: gravidade elíptica (`forceY` mais forte que `forceX`) e cor por tag dominante.
+- **Visual futurista**: halos neon somados (`globalCompositeOperation: 'lighter'`), sinapses finas, anel externo nos hubs, órbita giratória e fluxo de dados animado nas conexões do nó selecionado. Painéis HUD com grade de pontos feita em CSS, sem custo para o canvas. Cor por pasta de 1º nível (ou por tag) e opção de mostrar `#tags` como nós-hub, como no Obsidian.
 - **Gestos**: Pointer Events com pinça, pan, arrastar nó e toque. Alvo mínimo de 44 pt. `touch-action: none` só no canvas.
 - **O Markdown cru é a fonte da verdade.** Título, tags e links são derivados, e o parse é memoizado por nota. A exportação é sem perdas e só adiciona frontmatter quando a nota não tem.
 - **Persistência**: IndexedDB atrás da interface `VaultStorage`, pronta para trocar por sincronização ou pastas `.md`. As posições do grafo são salvas e o layout reabre estável.

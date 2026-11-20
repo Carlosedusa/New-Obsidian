@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useVault } from './state/vault';
 import { useLayoutMode } from './hooks/useLayoutMode';
 import { useTheme, useViewport } from './hooks/useViewport';
-import { NoteList } from './components/NoteList';
+import { FileExplorer } from './components/FileExplorer';
 import { NoteView } from './components/NoteView';
 import { BrainPane } from './components/BrainPane';
 import { SettingsSheet } from './components/SettingsSheet';
@@ -58,7 +58,7 @@ export default function App() {
       onDeleted={() => { setOpenId(null); setSelected(null); setTab('notes'); }} />
   );
   const brain = <BrainPane selectedId={selected} onSelect={setSelected} onOpen={openNote} tag={tag} setTag={setTag} />;
-  const list = <NoteList activeId={openId} onOpen={openNote} onSettings={() => setSettingsOpen(true)} onNotify={setToast} />;
+  const list = <FileExplorer activeId={openId} onOpen={openNote} onSettings={() => setSettingsOpen(true)} onNotify={setToast} />;
 
   return (
     <div className="safe-x flex h-full flex-col bg-bg text-ink">

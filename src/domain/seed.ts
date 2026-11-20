@@ -1,8 +1,8 @@
 import type { Note } from './types';
 
 /** "Cérebro" de exemplo: PSM + lingotamento contínuo + produtividade. Mistura links, tags e conexões só semânticas. */
-const SEED: [string, string][] = [
-  ['bem-vindo', `---
+const SEED: [string, string, string][] = [
+  ['bem-vindo', '00 - Current Projects/Cérebro Digital', `---
 title: Bem-vindo ao Cérebro Digital
 tags: [guia]
 ---
@@ -20,7 +20,7 @@ Cada nota é um arquivo **Markdown**. As conexões aparecem sozinhas no **Céreb
 
 > Dica: no iPhone/iPad, use **Compartilhar → Adicionar à Tela de Início** para instalar.
 `],
-  ['psm', `# PSM — Visão Geral
+  ['psm', '01 - Areas/PSM', `# PSM — Visão Geral
 
 O **Process Safety Management** (OSHA 29 CFR 1910.119) organiza a gestão de riscos de processo em 14 elementos. #psm #seguranca-de-processo
 
@@ -39,7 +39,7 @@ O **Process Safety Management** (OSHA 29 CFR 1910.119) organiza a gestão de ris
 - Auditorias de conformidade
 - Segredos industriais
 `],
-  ['psi', `# Informação de Segurança de Processo
+  ['psi', '01 - Areas/PSM', `# Informação de Segurança de Processo
 
 Base documental do PSM: perigos dos materiais, tecnologia do processo e dados dos equipamentos. #psm
 
@@ -50,14 +50,14 @@ Base documental do PSM: perigos dos materiais, tecnologia do processo e dados do
 
 Sem PSI atualizada não existe [[Análise de Perigos de Processo (PHA)]] confiável.
 `],
-  ['pha', `# Análise de Perigos de Processo (PHA)
+  ['pha', '02 - Resources/Análise de Risco', `# Análise de Perigos de Processo (PHA)
 
 Identifica cenários de perigo, causas, consequências e salvaguardas. Deve ser revalidada periodicamente. #psm #analise-de-risco
 
 Técnicas: [[HAZOP]], What-If, checklist, FMEA, [[Bow-Tie]].
 Cenários de alta severidade seguem para [[LOPA]].
 `],
-  ['hazop', `# HAZOP
+  ['hazop', '02 - Resources/Análise de Risco', `# HAZOP
 
 Estudo de perigos e operabilidade por **nós** do P&ID, aplicando palavras-guia aos parâmetros do processo. #analise-de-risco
 
@@ -70,7 +70,7 @@ Estudo de perigos e operabilidade por **nós** do P&ID, aplicando palavras-guia 
 
 Para cada desvio: causa → consequência → salvaguardas → recomendações.
 `],
-  ['lopa', `# LOPA
+  ['lopa', '02 - Resources/Análise de Risco', `# LOPA
 
 Análise de camadas de proteção: estima a frequência do cenário a partir do evento iniciador e da PFD de cada camada independente (IPL). #analise-de-risco #sis
 
@@ -82,13 +82,13 @@ Análise de camadas de proteção: estima a frequência do cenário a partir do 
 f = 1e-1 /ano × 1e-2 (alarme+operador) × 1e-2 (SIF SIL2) = 1e-5 /ano
 \`\`\`
 `],
-  ['bowtie', `# Bow-Tie
+  ['bowtie', '02 - Resources/Análise de Risco', `# Bow-Tie
 
 Diagrama que liga **ameaças** → barreiras preventivas → **evento topo** → barreiras mitigadoras → **consequências**. Ótimo para comunicar cenários de perigo ao chão de fábrica. #analise-de-risco
 
 Complementa o [[HAZOP]] e ajuda a definir o que vigiar na [[Integridade Mecânica]].
 `],
-  ['moc', `# Gestão de Mudanças (MOC)
+  ['moc', '01 - Areas/PSM', `# Gestão de Mudanças (MOC)
 
 Toda mudança em tecnologia, equipamentos, procedimentos ou organização é avaliada **antes** de ser implementada. #psm
 
@@ -98,7 +98,7 @@ Toda mudança em tecnologia, equipamentos, procedimentos ou organização é ava
 - Mudanças temporárias com prazo de retorno
 - Fechamento com [[Revisão de Segurança Pré-Partida (PSSR)]]
 `],
-  ['pssr', `# Revisão de Segurança Pré-Partida (PSSR)
+  ['pssr', '01 - Areas/PSM', `# Revisão de Segurança Pré-Partida (PSSR)
 
 Checklist antes de partir instalação nova ou modificada. #psm
 
@@ -107,7 +107,7 @@ Checklist antes de partir instalação nova ou modificada. #psm
 - [ ] Recomendações da PHA resolvidas
 - [ ] Treinamento concluído
 `],
-  ['mi', `# Integridade Mecânica
+  ['mi', '01 - Areas/PSM', `# Integridade Mecânica
 
 Garante que equipamentos críticos estejam aptos ao serviço: inspeção, teste, manutenção e controle de qualidade. #psm #manutencao
 
@@ -118,19 +118,19 @@ Garante que equipamentos críticos estejam aptos ao serviço: inspeção, teste,
 
 Na aciaria, inclui o circuito de água de refrigeração do [[Molde do Lingotamento]].
 `],
-  ['incidentes', `# Investigação de Incidentes
+  ['incidentes', '01 - Areas/PSM', `# Investigação de Incidentes
 
 Investigar acidentes e quase-acidentes com potencial de evento catastrófico. #psm
 
 Abordagem: equipe multidisciplinar, linha do tempo, causas raiz (árvore de falhas, 5 porquês) e acompanhamento das ações. Ex.: [[Breakout no Lingotamento]].
 `],
-  ['lc', `# Lingotamento Contínuo
+  ['lc', '01 - Areas/Lingotamento Contínuo', `# Lingotamento Contínuo
 
 Solidifica o aço líquido em placas, tarugos ou blocos. Fluxo: panela → distribuidor → [[Molde do Lingotamento]] → resfriamento secundário → segmentos → corte. #lingotamento
 
 Principais perigos de processo: [[Breakout no Lingotamento]], contato de água com aço líquido e vazamento da panela.
 `],
-  ['molde', `# Molde do Lingotamento
+  ['molde', '01 - Areas/Lingotamento Contínuo', `# Molde do Lingotamento
 
 Molde de cobre refrigerado a água, com oscilação para evitar colagem da pele solidificada. #lingotamento #manutencao
 
@@ -138,23 +138,23 @@ Molde de cobre refrigerado a água, com oscilação para evitar colagem da pele 
 - Desgaste das placas de cobre e conicidade afetam a formação da pele
 - Falta de refrigeração do molde é cenário típico para [[HAZOP]]
 `],
-  ['breakout', `# Breakout no Lingotamento
+  ['breakout', '01 - Areas/Lingotamento Contínuo', `# Breakout no Lingotamento
 
 Ruptura da pele solidificada abaixo do molde e vazamento de aço líquido. Risco de explosão por contato do aço com água e de danos graves aos segmentos. #lingotamento #seguranca-de-processo
 
 Salvaguardas: sistema de previsão de breakout por termopares no molde, controle de velocidade, lubrificação do molde e intertravamentos.
 `],
-  ['rolos', `# Rolos dos Segmentos
+  ['rolos', '01 - Areas/Lingotamento Contínuo', `# Rolos dos Segmentos
 
 Os rolos sustentam e guiam a placa durante a solidificação. Falhas de rolamento e desalinhamento geram trincas e abaulamento. #manutencao
 
 Monitorar temperatura e vibração dos mancais, folgas, e a água de refrigeração interna dos rolos.
 `],
-  ['preditiva', `# Manutenção Preditiva
+  ['preditiva', '02 - Resources/Manutenção', `# Manutenção Preditiva
 
 Análise de vibração, termografia e análise de óleo para antecipar falhas de rolamentos e mancais. A temperatura e a vibração dos rolamentos indicam desgaste antes da quebra. #produtividade
 `],
-  ['app', `# Ideias de Apps de Engenharia
+  ['app', '00 - Current Projects/Cérebro Digital', `# Ideias de Apps de Engenharia
 
 Apps de produtividade que valeria construir: #produtividade #apps
 
@@ -166,10 +166,14 @@ Apps de produtividade que valeria construir: #produtividade #apps
 ];
 
 export function seedNotes(now = Date.now()): Note[] {
-  return SEED.map(([slug, content], i) => ({
+  return SEED.map(([slug, folder, content], i) => ({
     id: `seed-${slug}`,
+    folder,
     content,
     createdAt: now - (SEED.length - i) * 3_600_000,
     updatedAt: now - (SEED.length - i) * 3_600_000,
   }));
 }
+
+/** Pasta de cada nota de exemplo (migra cofres criados antes das pastas). */
+export const SEED_FOLDERS: Record<string, string> = Object.fromEntries(SEED.map(([slug, folder]) => [`seed-${slug}`, folder]));

@@ -3,13 +3,15 @@
 @tailwind utilities;
 
 :root, [data-theme='dark'] {
-  --c-bg: 11 16 32;
-  --c-surface: 18 24 44;
-  --c-raised: 30 38 66;
-  --c-line: 44 54 88;
-  --c-ink: 232 236 248;
-  --c-muted: 142 152 186;
-  --c-accent: 129 140 248;
+  --c-bg: 10 12 17;
+  --c-surface: 20 23 30;
+  --c-raised: 32 36 46;
+  --c-line: 46 52 64;
+  --c-ink: 228 233 241;
+  --c-muted: 134 143 160;
+  --c-accent: 56 189 248;
+  --c-on-accent: 4 12 20;
+  --c-edge: 118 130 150;
   color-scheme: dark;
 }
 [data-theme='light'] {
@@ -19,7 +21,9 @@
   --c-line: 220 225 238;
   --c-ink: 22 27 48;
   --c-muted: 98 108 138;
-  --c-accent: 79 70 229;
+  --c-accent: 2 132 199;
+  --c-on-accent: 255 255 255;
+  --c-edge: 150 160 182;
   color-scheme: light;
 }
 
@@ -39,7 +43,29 @@ button { -webkit-user-select: none; user-select: none; touch-action: manipulatio
   .btn-row { @apply block min-h-11 w-full rounded-xl bg-surface px-4 text-left text-sm active:bg-bg; }
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
-  .brain-bg { background: radial-gradient(ellipse at 50% 45%, rgb(var(--c-accent) / 0.12), transparent 65%), rgb(var(--c-bg)); }
+  /* Fundo do cérebro: grade de pontos + halo central + vinheta (CSS puro, custo zero no canvas) */
+  .brain-bg {
+    background:
+      radial-gradient(ellipse at 50% 50%, transparent 55%, rgb(0 0 0 / 0.35) 100%),
+      radial-gradient(circle at 50% 48%, rgb(var(--c-accent) / 0.10), transparent 60%),
+      radial-gradient(circle, rgb(var(--c-accent) / 0.10) 1px, transparent 1.2px) 0 0 / 26px 26px,
+      rgb(var(--c-bg));
+  }
+  [data-theme='light'] .brain-bg {
+    background:
+      radial-gradient(circle at 50% 48%, rgb(var(--c-accent) / 0.08), transparent 60%),
+      radial-gradient(circle, rgb(var(--c-accent) / 0.14) 1px, transparent 1.2px) 0 0 / 26px 26px,
+      rgb(var(--c-bg));
+  }
+  /* Painéis HUD com cantos em colchete */
+  .hud { @apply relative rounded-lg border border-line/60 bg-bg/70 backdrop-blur-md; }
+  .hud::before, .hud::after {
+    content: ''; position: absolute; width: 10px; height: 10px; pointer-events: none;
+    border-color: rgb(var(--c-accent) / 0.8); border-style: solid;
+  }
+  .hud::before { top: -1px; left: -1px; border-width: 1.5px 0 0 1.5px; border-top-left-radius: 8px; }
+  .hud::after { bottom: -1px; right: -1px; border-width: 0 1.5px 1.5px 0; border-bottom-right-radius: 8px; }
+  .hud-label { @apply font-mono text-[10px] uppercase tracking-[0.16em] text-muted; }
 }
 
 /* Leitor de Markdown */

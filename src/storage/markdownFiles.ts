@@ -1,5 +1,6 @@
 import type { Note, ParsedNote } from '../domain/types';
 import { withFrontmatter } from '../domain/markdown';
+import { joinPath, normalizePath, parentOf } from '../domain/folders';
 
 export function newId(): string {
   return crypto.randomUUID?.() ?? `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -9,8 +10,11 @@ export function safeFileName(title: string): string {
   return (title.replace(/[\\/:*?"<>|#^[\]]+/g, ' ').replace(/\s+/g, ' ').trim() || 'nota').slice(0, 120);
 }
 
-/** Lê arquivos .md/.markdown/.txt. Pula conteúdos idênticos aos já existentes. */
-export async function readMarkdownFiles(files: FileList | File[], existing: Note[]): Promise<Note[]> {
+/**
+ * Lê arquivos .md/.markdown/.txt para dentro de `folder`. Ao importar uma pasta inteira (desktop),
+ * preserva a estrutura de subpastas via webkitRelativePath. Pula conteúdos idênticos aos já existentes.
+ */
+export async function readMarkdownFiles(files: FileList | File[], existing: Note[], folder: string): Promise<Note[]> {
   const seen = new Set(existing.map((n) => n.content));
   const out: Note[] = [];
   for (const f of Array.from(files)) {
@@ -19,7 +23,8 @@ export async function readMarkdownFiles(files: FileList | File[], existing: Note
     if (seen.has(content)) continue;
     seen.add(content);
     const t = f.lastModified || Date.now();
-    out.push({ id: newId(), content, fallbackTitle: f.name.replace(/\.[^.]+$/, ''), createdAt: t, updatedAt: t });
+    const rel = parentOf(normalizePath(f.webkitRelativePath));
+    out.push({ id: newId(), content, folder: joinPath(folder, rel), fallbackTitle: f.name.replace(/\.[^.]+$/, ''), createdAt: t, updatedAt: t });
   }
   return out;
 }
@@ -117,10 +122,11 @@ export function vaultZip(notes: Note[], parse: (n: Note) => ParsedNote): File {
   const used = new Set<string>();
   const entries = notes.map((n) => {
     const p = parse(n);
+    const dir = p.folder ? `${p.folder}/` : '';
     let base = safeFileName(p.title);
-    for (let i = 2; used.has(base.toLowerCase()); i++) base = `${safeFileName(p.title)} ${i}`;
-    used.add(base.toLowerCase());
-    return { name: `${base}.md`, data: enc.encode(withFrontmatter(n, p)), date: new Date(n.updatedAt) };
+    for (let i = 2; used.has((dir + base).toLowerCase()); i++) base = `${safeFileName(p.title)} ${i}`;
+    used.add((dir + base).toLowerCase());
+    return { name: `${dir}${base}.md`, data: enc.encode(withFrontmatter(n, p)), date: new Date(n.updatedAt) };
   });
   const stamp = new Date().toISOString().slice(0, 10);
   return new File([buildZip(entries)], `cerebro-${stamp}.zip`, { type: 'application/zip' });

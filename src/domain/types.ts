@@ -4,6 +4,8 @@ export interface Note {
   content: string;
   /** Usado como título quando o texto não tem frontmatter `title` nem `# H1` (ex.: nome do arquivo importado). */
   fallbackTitle?: string;
+  /** Caminho da pasta, ex.: "01 - Areas/PSM". Vazio/ausente = "99 - Unsorted". */
+  folder?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -15,6 +17,7 @@ export interface ParsedNote {
   title: string;
   /** Chave normalizada do título (sem acento/caixa) usada para resolver [[links]]. */
   titleKey: string;
+  folder: string;
   tags: string[];
   /** Alvos crus de [[links]] (já sem alias/âncora). */
   links: string[];
@@ -39,9 +42,13 @@ export interface Edge {
   terms: string[];
 }
 
+export type NodeType = 'note' | 'tag';
+
 export interface GraphNode {
   id: string;
+  type: NodeType;
   title: string;
+  folder: string;
   tags: string[];
   degree: number;
   primaryTag?: string;
@@ -70,6 +77,10 @@ export interface Settings {
   /** Tags com mais notas que isso não geram arestas (evita cliques gigantes). */
   maxTagGroup: number;
   theme: ThemeMode;
+  /** Cor dos neurônios: pela pasta de 1º nível ou pela tag dominante. */
+  colorBy: 'folder' | 'tag';
+  /** Mostra cada #tag como um nó-hub ligado às suas notas (estilo Obsidian). */
+  showTagNodes: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -83,6 +94,8 @@ export const DEFAULT_SETTINGS: Settings = {
   semanticTopK: 4,
   maxTagGroup: 30,
   theme: 'auto',
+  colorBy: 'folder',
+  showTagNodes: false,
 };
 
 export interface Analysis {
