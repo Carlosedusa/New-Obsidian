@@ -29,3 +29,6 @@ export const IconCollapse = base('M7 4l5 5 5-5M7 20l5-5 5 5');
 export const IconChevron = base('M9 6l6 6-6 6');
 export const IconMore = base('M5 12h.01M12 12h.01M19 12h.01');
 export const IconFolder = base('M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z');
+export const IconCloud = base('M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 8.5a4.5 4.5 0 0 1-.5 9.5z');
+export const IconCloudOff = base('M3 3l18 18M8.5 5.6A6 6 0 0 1 18 8.5a4.5 4.5 0 0 1 2.6 7.9M17 18H7a4.5 4.5 0 0 1-.6-8.96');
+export const IconSync = base('M20 11a8 8 0 0 0-14.6-4.4M4 4v3h3M4 13a8 8 0 0 0 14.6 4.4M20 20v-3h-3');

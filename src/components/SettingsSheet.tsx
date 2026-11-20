@@ -3,6 +3,7 @@ import { parseNote } from '../domain/markdown';
 import { saveFile, vaultZip } from '../storage/markdownFiles';
 import type { Settings, ThemeMode } from '../domain/types';
 import { IconClose } from './icons';
+import { redirectUri } from '../sync/msal';
 
 function Slider({ label, hint, value, min, max, step, onChange, fmt = (v) => v.toFixed(2) }: {
   label: string; hint?: string; value: number; min: number; max: number; step: number;
@@ -27,7 +28,9 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
-  const { settings: s, setSettings, notes, analysis, loadExamples } = useVault();
+  const { settings: s, setSettings, notes, analysis, loadExamples, sync } = useVault();
+  const st = sync.status;
+  const ago = st.lastSync ? new Date(st.lastSync).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : null;
   const set = <K extends keyof Settings>(k: K) => (v: Settings[K]) => setSettings({ [k]: v } as Partial<Settings>);
   const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone;
 
@@ -82,8 +85,57 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
+        <section className="card">
+          <h3 className="card-title">Sincronização OneDrive</h3>
+          <Toggle label="Sincronizar automaticamente" checked={s.syncEnabled} onChange={set('syncEnabled')} />
+          {s.syncEnabled && (
+            <div className="space-y-3 pb-1">
+              <label className="block text-sm">
+                Client ID do app (Microsoft Entra)
+                <input value={s.onedriveClientId} onChange={(e) => set('onedriveClientId')(e.target.value.trim())}
+                  placeholder="00000000-0000-0000-0000-000000000000" autoCapitalize="off" autoCorrect="off" spellCheck={false}
+                  className="mt-1 h-11 w-full rounded-xl bg-surface px-3 font-mono text-[16px] outline-none ring-accent focus:ring-2" />
+              </label>
+              <label className="block text-sm">
+                Pasta no OneDrive
+                <input value={s.onedriveFolder} onChange={(e) => set('onedriveFolder')(e.target.value)}
+                  className="mt-1 h-11 w-full rounded-xl bg-surface px-3 text-[16px] outline-none ring-accent focus:ring-2" />
+              </label>
+
+              <div className="rounded-xl bg-surface px-3 py-2 text-sm">
+                {st.account ? <div>Conta: <b>{st.account}</b></div> : <div className="text-muted">Nenhuma conta conectada.</div>}
+                <div className="text-muted">
+                  {{ off: 'Desligada', 'signed-out': 'Aguardando login', idle: 'Em dia', syncing: 'Sincronizando…', error: 'Erro', offline: 'Sem conexão' }[st.phase]}
+                  {ago && ` · última: ${ago}`}
+                  {st.lastStats && ` · ↑${st.lastStats.uploaded} ↓${st.lastStats.downloaded}`}
+                  {st.lastStats?.conflicts ? ` · ${st.lastStats.conflicts} conflito(s)` : ''}
+                </div>
+                {st.message && <div className="mt-1 text-xs text-amber-400">{st.message}</div>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {st.account ? (
+                  <>
+                    <button className="btn-row text-center" onClick={sync.syncNow} disabled={st.phase === 'syncing'}>Sincronizar agora</button>
+                    <button className="btn-row text-center text-red-400" onClick={() => { if (confirm('Desconectar do OneDrive? As notas continuam no aparelho e no OneDrive.')) void sync.signOut(); }}>Desconectar</button>
+                  </>
+                ) : (
+                  <button className="btn-row col-span-2 bg-accent text-center font-semibold text-on-accent" disabled={!s.onedriveClientId}
+                    onClick={() => sync.signIn().catch((e: Error) => alert(e.message))}>
+                    Entrar com a conta Microsoft
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-muted">
+                Suas notas ficam em <b>OneDrive › {s.onedriveFolder || 'Cérebro Digital'}</b> como arquivos .md, na mesma árvore de pastas.
+                No cadastro do app no Azure, use como URI de redirecionamento (tipo SPA): <span className="select-all break-all font-mono">{redirectUri()}</span>
+              </p>
+            </div>
+          )}
+        </section>
+
         <section className="card space-y-2">
-          <h3 className="card-title">Dados (100% no aparelho)</h3>
+          <h3 className="card-title">Dados (no aparelho{s.syncEnabled ? ' + OneDrive' : ''})</h3>
           <button className="btn-row" onClick={() => saveFile(vaultZip(notes, parseNote))}>Exportar cofre inteiro (.zip com pastas e .md)</button>
           <button className="btn-row" onClick={loadExamples}>Recarregar notas de exemplo</button>
         </section>

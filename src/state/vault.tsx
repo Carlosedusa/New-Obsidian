@@ -5,6 +5,8 @@ import { DEFAULT_FOLDERS, isWithin, joinPath, normalizePath, parentOf, rebase, U
 import { DEFAULT_SETTINGS, type Analysis, type Note, type Settings } from '../domain/types';
 import { createStorage, type VaultStorage } from '../storage/storage';
 import { newId, readMarkdownFiles } from '../storage/markdownFiles';
+import { SyncController, type SyncStatus } from '../sync/controller';
+import type { SyncResult } from '../sync/engine';
 
 export type Layout = Record<string, { x: number; y: number }>;
 
@@ -29,6 +31,12 @@ interface Vault {
   loadExamples(): void;
   setSettings(patch: Partial<Settings>): void;
   saveLayout(layout: Layout): void;
+  sync: {
+    status: SyncStatus;
+    syncNow(): void;
+    signIn(): Promise<void>;
+    signOut(): Promise<void>;
+  };
 }
 
 const Ctx = createContext<Vault | null>(null);
@@ -48,6 +56,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [pulse, setPulse] = useState<Vault['pulse']>(null);
   const [folderList, setFolderList] = useState<string[]>(DEFAULT_FOLDERS);
   const pending = useRef(new Map<string, Note>());
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({ phase: 'off' });
+  const syncRef = useRef<SyncController | null>(null);
+  const notesRef = useRef<Note[]>([]);
+  const folderListRef = useRef<string[]>(DEFAULT_FOLDERS);
+  notesRef.current = notes;
+  /** Avisa a sincronização de que algo mudou localmente. */
+  const touched = () => syncRef.current?.touched();
   const flushTimer = useRef<number>(0);
 
   useEffect(() => {
@@ -68,8 +83,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         loaded = loaded.map((n) => m.get(n.id) ?? n);
       }
       setNotes(loaded);
-      setFolderList((await s.getMeta<string[]>('folders')) ?? DEFAULT_FOLDERS);
-      setSettingsState({ ...DEFAULT_SETTINGS, ...((await s.getMeta<Settings>('settings')) ?? {}) });
+      const loadedFolders = (await s.getMeta<string[]>('folders')) ?? DEFAULT_FOLDERS;
+      setFolderList(loadedFolders);
+      folderListRef.current = loadedFolders;
+      notesRef.current = loaded;
+      const loadedSettings: Settings = { ...DEFAULT_SETTINGS, ...((await s.getMeta<Settings>('settings')) ?? {}) };
+      // Client ID pode vir embutido no build (VITE_MS_CLIENT_ID) para não precisar digitar.
+      if (!loadedSettings.onedriveClientId) loadedSettings.onedriveClientId = import.meta.env.VITE_MS_CLIENT_ID ?? '';
+      setSettingsState(loadedSettings);
       setLayout((await s.getMeta<Layout>('layout')) ?? {});
       setReady(true);
     })();
@@ -102,6 +123,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   const saveFolders = useCallback((next: string[]) => {
+    folderListRef.current = next;
     setFolderList(next);
     storage.current?.setMeta('folders', next);
   }, []);
@@ -113,6 +135,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       setNotes((prev) => [n, ...prev]);
       persist(n);
       setPulse({ id: n.id, at: now });
+      touched();
       return n.id;
     },
     [persist],
@@ -129,6 +152,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         }),
       );
       setPulse({ id, at: Date.now() });
+      touched();
     },
     [persist],
   );
@@ -143,6 +167,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           return next;
         }),
       );
+      touched();
     },
     [persist],
   );
@@ -169,6 +194,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const path = joinPath(parent, name);
       if (!path) return null;
       if (!folderList.includes(path)) saveFolders([...folderList, path]);
+      touched();
       return path;
     },
     [folderList, saveFolders],
@@ -178,8 +204,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     (path: string, newName: string) => {
       const to = joinPath(parentOf(path), newName);
       if (!to || to === path) return;
-      saveFolders([...new Set([...withAncestors(folderList)].map((f) => rebase(f, path, to)))]);
+      const all = withAncestors(folderList);
+      saveFolders([...new Set([...all].map((f) => rebase(f, path, to)))]);
       remapFolders((f) => rebase(f, path, to));
+      syncRef.current?.foldersRemoved([...all].filter((f) => isWithin(f, path)));
     },
     [folderList, saveFolders, remapFolders],
   );
@@ -188,8 +216,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const deleteFolder = useCallback(
     (path: string) => {
       const dest = parentOf(path) || UNSORTED;
-      saveFolders([...withAncestors(folderList)].filter((f) => !isWithin(f, path)));
+      const all = withAncestors(folderList);
+      saveFolders([...all].filter((f) => !isWithin(f, path)));
       remapFolders((f) => (isWithin(f, path) ? dest : f));
+      syncRef.current?.foldersRemoved([...all].filter((f) => isWithin(f, path)));
     },
     [folderList, saveFolders, remapFolders],
   );
@@ -198,6 +228,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     pending.current.delete(id);
     setNotes((prev) => prev.filter((n) => n.id !== id));
     storage.current?.deleteNote(id);
+    syncRef.current?.noteDeleted(id);
   }, []);
 
   const importFiles = useCallback(async (files: FileList | File[], folder = UNSORTED) => {
@@ -207,6 +238,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       setNotes((prev) => [...imported, ...prev]);
       await storage.current?.putNotes(imported);
       setPulse({ id: imported[0].id, at: Date.now() });
+      touched();
     }
     return imported.length;
   }, [notes, folderList, saveFolders]);
@@ -218,6 +250,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     saveFolders([...withAncestors([...folderList, ...add.map((n) => n.folder ?? UNSORTED)])]);
     setNotes((prev) => [...add, ...prev]);
     storage.current?.putNotes(add);
+    touched();
   }, [notes, folderList, saveFolders]);
 
   const setSettings = useCallback((patch: Partial<Settings>) => {
@@ -233,6 +266,52 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     storage.current?.setMeta('layout', l);
   }, []);
 
+  /** Aplica o que veio do OneDrive, sem atropelar notas editadas enquanto a sync rodava. */
+  const applySync = useCallback((result: SyncResult, snap: { notes: Note[] }): string[] => {
+    const before = new Map(snap.notes.map((n) => [n.id, n]));
+    const now = new Map(notesRef.current.map((n) => [n.id, n]));
+    const skipped: string[] = [];
+    const puts: Note[] = [];
+    for (const u of result.upserts) {
+      if (before.has(u.id) && now.get(u.id) !== before.get(u.id)) { skipped.push(u.id); continue; }
+      puts.push(u);
+    }
+    const dels = result.deletes.filter((id) => now.get(id) === before.get(id));
+    if (puts.length || dels.length) {
+      for (const n of puts) pending.current.delete(n.id);
+      for (const id of dels) pending.current.delete(id);
+      const map = new Map(notesRef.current.map((n) => [n.id, n]));
+      for (const n of puts) map.set(n.id, n);
+      for (const id of dels) map.delete(id);
+      notesRef.current = [...map.values()];
+      setNotes(notesRef.current);
+      storage.current?.putNotes(puts);
+      for (const id of dels) storage.current?.deleteNote(id);
+    }
+    const extra = result.folders.filter((f) => !folderListRef.current.includes(f));
+    if (extra.length) saveFolders([...withAncestors([...folderListRef.current, ...extra])]);
+    return skipped;
+  }, [saveFolders]);
+
+  useEffect(() => {
+    if (!ready || !storage.current || syncRef.current) return;
+    syncRef.current = new SyncController({
+      storage: storage.current,
+      snapshot: () => ({ notes: notesRef.current, folders: folderListRef.current }),
+      apply: applySync,
+      onStatus: setSyncStatus,
+    });
+  }, [ready, applySync]);
+
+  useEffect(() => {
+    if (!ready) return;
+    void syncRef.current?.configure({
+      enabled: settings.syncEnabled,
+      clientId: settings.onedriveClientId,
+      folder: settings.onedriveFolder.trim() || DEFAULT_SETTINGS.onedriveFolder,
+    });
+  }, [ready, settings.syncEnabled, settings.onedriveClientId, settings.onedriveFolder]);
+
   // Análise completa (parse memoizado por nota + TF‑IDF). Barato até alguns milhares de notas.
   const analysis = useMemo(() => analyze(notes, settings), [notes, settings]);
 
@@ -243,7 +322,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const value: Vault = {
     ready, notes, analysis, settings, layout, pulse, folders,
-    createNote, moveNote, createFolder, renameFolder, deleteFolder, updateNote, deleteNote, importFiles, loadExamples, setSettings, saveLayout,
+    createNote, moveNote, createFolder, renameFolder, deleteFolder, updateNote, deleteNote,
+    sync: {
+      status: syncStatus,
+      syncNow: () => void syncRef.current?.syncNow(),
+      signIn: async () => { await syncRef.current?.signIn(); },
+      signOut: async () => { await syncRef.current?.signOut(); },
+    }, importFiles, loadExamples, setSettings, saveLayout,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

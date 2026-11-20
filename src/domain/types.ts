@@ -81,6 +81,12 @@ export interface Settings {
   colorBy: 'folder' | 'tag';
   /** Mostra cada #tag como um nó-hub ligado às suas notas (estilo Obsidian). */
   showTagNodes: boolean;
+  /** Sincronização com OneDrive. */
+  syncEnabled: boolean;
+  /** "Application (client) ID" do app registrado no Microsoft Entra (Azure). */
+  onedriveClientId: string;
+  /** Pasta no OneDrive onde o cofre fica (na raiz do seu OneDrive). */
+  onedriveFolder: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -96,6 +102,9 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   colorBy: 'folder',
   showTagNodes: false,
+  syncEnabled: false,
+  onedriveClientId: '',
+  onedriveFolder: 'Cérebro Digital',
 };
 
 export interface Analysis {

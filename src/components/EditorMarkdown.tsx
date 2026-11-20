@@ -62,6 +62,7 @@ export function EditorMarkdown({ noteId, value, titles, onChange }: Props) {
   // Troca de nota: grava o rascunho anterior e carrega o novo.
   useEffect(() => {
     setDraft(value);
+    sent.current = value;
     return () => {
       clearTimeout(timer.current);
       latest.current.onChange(latest.current.draft);
@@ -69,10 +70,19 @@ export function EditorMarkdown({ noteId, value, titles, onChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [noteId]);
 
+  // Texto alterado por fora (ex.: veio do OneDrive) enquanto a nota está aberta e sem
+  // digitação pendente → mostra a versão nova em vez de sobrescrevê-la com o rascunho.
+  const sent = useRef(value);
+  useEffect(() => {
+    if (value !== sent.current && value !== draft && !timer.current) setDraft(value);
+    sent.current = value;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   const commit = (v: string) => {
     setDraft(v);
     clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => onChange(v), 300);
+    timer.current = window.setTimeout(() => { timer.current = 0; sent.current = v; onChange(v); }, 300);
   };
 
   const select = (start: number, end: number) =>
@@ -116,7 +126,7 @@ export function EditorMarkdown({ noteId, value, titles, onChange }: Props) {
         value={draft}
         onChange={(e) => { commit(e.target.value); setCaret(e.target.selectionEnd); }}
         onSelect={(e) => setCaret(e.currentTarget.selectionEnd)}
-        onBlur={() => { clearTimeout(timer.current); onChange(draft); }}
+        onBlur={() => { clearTimeout(timer.current); timer.current = 0; sent.current = draft; onChange(draft); }}
         spellCheck
         autoCapitalize="sentences"
         className="min-h-0 flex-1 resize-none bg-transparent px-5 py-4 font-mono text-[16px] leading-relaxed text-ink outline-none placeholder:text-muted"

@@ -19,6 +19,41 @@ As notas vivem numa árvore de pastas e subpastas, com esta estrutura padrão:
 - **Mover uma nota:** pelo seletor de pasta logo abaixo do título (no iPhone abre a roleta nativa).
 - **Importar uma pasta inteira (computador):** mantém a estrutura de subpastas. A exportação `.zip` também.
 
+## Sincronização com OneDrive
+
+As notas ficam numa pasta comum do seu OneDrive (padrão: `OneDrive › Cérebro Digital`), como arquivos `.md` na mesma árvore de pastas do app. Elas aparecem no Explorador do Windows, e a pasta pode ser aberta como cofre no Obsidian; a pasta `.obsidian` é ignorada.
+
+**Quando sincroniza (automático):** ao abrir o app, ao voltar para ele, ao reconectar à internet, ~6 s depois de cada edição e a cada 3 min com o app aberto. O ícone de nuvem na barra lateral mostra o status, e tocar nele sincroniza na hora.
+
+**Regras:**
+
+| Situação | O que acontece |
+|---|---|
+| Editou só de um lado | A versão nova vai para o outro lado |
+| Editou a mesma nota nos dois lados | **Nada se perde**: a versão local fica no arquivo e a do OneDrive vira a nota "Título (conflito OneDrive dd/mm hh:mm)" |
+| Apagou no app | O arquivo vai para a **Lixeira do OneDrive** (recuperável). Se ele tinha sido editado no OneDrive nesse meio-tempo, é restaurado em vez de apagado |
+| Apagou no OneDrive | A nota é apagada no app (se tinha edição local não enviada, é reenviada) |
+| Renomeou ou moveu (qualquer lado) | É refletido no outro lado |
+| Mais da metade dos arquivos sumiu de uma vez | A sincronização **para** e avisa, sem apagar nada |
+
+### Cadastro único no Azure (5 minutos)
+
+O app precisa de um "Client ID" da Microsoft. É gratuito e você faz uma vez só:
+
+1. Acesse https://entra.microsoft.com e entre com sua conta Microsoft. Se a conta pessoal (Outlook/Hotmail) não tiver um diretório, use https://portal.azure.com, que cria um diretório padrão.
+2. Vá em **Aplicativos → Registros de aplicativo → Novo registro**.
+   - Nome: `Cérebro Digital`
+   - Tipos de conta: **Contas em qualquer diretório organizacional e contas Microsoft pessoais**
+   - URI de redirecionamento: plataforma **Aplicativo de página única (SPA)**, valor `http://localhost:5173/`
+3. Clique em **Registrar** e copie o **ID do aplicativo (cliente)**.
+4. Em **Autenticação**, adicione também a URL publicada do app (ex.: `https://seu-app.vercel.app/`). O app mostra a URI exata nas Configurações.
+5. Em **Permissões de API**, confira que existe **Microsoft Graph → Files.ReadWrite (delegada)**. Se não existir, adicione-a.
+6. No app: **Configurações → Sincronização OneDrive**, ligue a opção, cole o Client ID e toque em **Entrar com a conta Microsoft**.
+
+Para não precisar digitar o Client ID em cada aparelho, crie um arquivo `.env.local` com `VITE_MS_CLIENT_ID=<seu-id>` antes do `npm run build`.
+
+> **Conta corporativa:** muitas empresas bloqueiam o consentimento de apps de terceiros. Para usar o OneDrive corporativo, peça ao TI que aprove o app, ou use a conta pessoal. Confirme também se a política de dados da empresa permite guardar o conteúdo fora dos sistemas oficiais.
+
 ## Rodar localmente
 
 ```bash
@@ -53,6 +88,11 @@ src/
     storage.ts       interface VaultStorage + IndexedDB (fallback em memória)
     markdownFiles.ts importar .md, exportar .md e .zip do cofre, folha de compartilhamento do iOS
   state/vault.tsx    contexto do cofre: CRUD, gravação com debounce, análise derivada
+  sync/
+    engine.ts        motor de sincronização 3 vias (puro, testado com OneDrive simulado)
+    graphDrive.ts    cliente Microsoft Graph (listar, baixar, enviar, mover, lixeira)
+    msal.ts          login Microsoft (MSAL, PKCE, redirecionamento; carregado sob demanda)
+    controller.ts    quando sincronizar, estado persistido, status para a interface
   hooks/             layout (phone/tablet/wide), teclado iOS (visualViewport), tema
   components/
     BrainGraph.tsx   grafo em <canvas> + d3-force, gestos de toque, impulsos

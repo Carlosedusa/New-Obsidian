@@ -4,6 +4,7 @@ import { normKey } from '../domain/text';
 import { buildTree, folderColor, parentOf, withAncestors, UNSORTED, type FolderNode } from '../domain/folders';
 import type { ParsedNote } from '../domain/types';
 import { ActionSheet, type SheetAction } from './ActionSheet';
+import { SyncBadge } from './SyncBadge';
 import {
   IconChevron, IconCollapse, IconFolderPlus, IconGear, IconImport, IconMore, IconNewNote, IconSearch, IconSort,
 } from './icons';
@@ -173,6 +174,7 @@ export function FileExplorer({ activeId, onOpen, onSettings, onNotify }: Props) 
           </button>
           <button className={tool} title="Recolher tudo" aria-label="Recolher tudo" onClick={() => setExpanded([])}><IconCollapse width={20} height={20} /></button>
           <span className="flex-1" />
+          <SyncBadge onSettings={onSettings} />
           <button className={tool} title="Importar" aria-label="Importar"
             onClick={() => setSheet({ title: `Importar para “${target}”`, actions: [
               { label: 'Arquivos .md', onClick: () => pickImport(target) },
